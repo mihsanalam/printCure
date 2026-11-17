@@ -20,7 +20,29 @@ const MIME_EXTENSIONS = {
   'application/pdf': '.pdf',
 };
 
-const PAGE_SIZES = new Set(['A4', 'A5', 'A3', 'Letter', 'Legal', 'Tabloid']);
+// Keep this list in sync with src/shared/protocol.js.
+const PAGE_SIZES = new Set(['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'Legal', 'Letter', 'Tabloid']);
+const SHEETS_PER_PAGE = new Set([1, 2, 4, 6, 9, 16]);
+const MARGIN_TYPES = {
+  default: 'default',
+  none: 'none',
+  minimum: 'printableArea',
+  custom: 'custom',
+};
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function toInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 function sanitizeName(name) {
   const cleaned = String(name || 'file')
@@ -29,13 +51,164 @@ function sanitizeName(name) {
   return cleaned || 'file';
 }
 
-function normalizeSettings(settings = {}) {
-  const copies = Math.min(Math.max(Number.parseInt(settings.copies, 10) || 1, 1), 99);
-  const pageSize = PAGE_SIZES.has(settings.pageSize) ? settings.pageSize : 'A4';
-  return { copies, pageSize, landscape: Boolean(settings.landscape) };
+// Chrome-style page ranges: "1-3, 5, 8-10". Returns null when invalid.
+function parsePageRanges(value) {
+  const text = String(value ?? '').trim();
+  if (!text) {
+    return null;
+  }
+
+  const ranges = [];
+  for (const part of text.split(',')) {
+    const match = part.trim().match(/^(\d+)\s*(?:-\s*(\d+))?$/);
+    if (!match) {
+      return null;
+    }
+
+    const from = Number.parseInt(match[1], 10);
+    const to = Number.parseInt(match[2] ?? match[1], 10);
+    if (from < 1 || to < from) {
+      return null;
+    }
+    ranges.push({ from, to });
+  }
+
+  return ranges.length > 0 ? ranges : null;
 }
 
-async function printFile({ name, mime, settings, data } = {}) {
+function normalizeSettings(settings = {}) {
+  const margins = settings.margins && typeof settings.margins === 'object' ? settings.margins : {};
+  const marginType = Object.prototype.hasOwnProperty.call(MARGIN_TYPES, margins.type)
+    ? margins.type
+    : 'default';
+  const ranges =
+    settings.pageRanges?.mode === 'custom'
+      ? parsePageRanges(settings.pageRanges.value)
+      : null;
+
+  const pagesPerSheet = toInt(settings.pagesPerSheet, 1);
+
+  return {
+    copies: clamp(toInt(settings.copies, 1), 1, 99),
+    collate: settings.collate !== false,
+    pageRanges: { mode: ranges ? 'custom' : 'all', ranges },
+    orientation:
+      settings.orientation === 'landscape' ||
+      (!settings.orientation && settings.landscape)
+        ? 'landscape'
+        : 'portrait',
+    pageSize: PAGE_SIZES.has(settings.pageSize) ? settings.pageSize : 'A4',
+    pagesPerSheet: SHEETS_PER_PAGE.has(pagesPerSheet) ? pagesPerSheet : 1,
+    color: settings.color === 'grayscale' ? 'grayscale' : 'color',
+    margins: {
+      type: marginType,
+      top: clamp(toNumber(margins.top, 10), 0, 100),
+      bottom: clamp(toNumber(margins.bottom, 10), 0, 100),
+      left: clamp(toNumber(margins.left, 10), 0, 100),
+      right: clamp(toNumber(margins.right, 10), 0, 100),
+    },
+    scale: clamp(toNumber(settings.scale, 100), 10, 200),
+    duplex: ['simplex', 'longEdge', 'shortEdge'].includes(settings.duplex)
+      ? settings.duplex
+      : 'simplex',
+    printBackground: settings.printBackground !== false,
+    headersFooters: Boolean(settings.headersFooters),
+  };
+}
+
+function buildMargins(margins) {
+  const marginType = MARGIN_TYPES[margins.type] ?? 'default';
+  if (marginType !== 'custom') {
+    return { marginType };
+  }
+
+  // Electron expects custom margins in pixels.
+  const toPixels = (millimetres) => Math.round((millimetres * 96) / 25.4);
+  return {
+    marginType,
+    top: toPixels(margins.top),
+    bottom: toPixels(margins.bottom),
+    left: toPixels(margins.left),
+    right: toPixels(margins.right),
+  };
+}
+
+function buildPrintOptions(settings, { deviceName, header, footer } = {}) {
+  const options = {
+    silent: true,
+    printBackground: settings.printBackground,
+    color: settings.color === 'color',
+    landscape: settings.orientation === 'landscape',
+    copies: settings.copies,
+    collate: settings.collate,
+    pagesPerSheet: settings.pagesPerSheet,
+    scaleFactor: settings.scale / 100,
+    duplexMode: settings.duplex,
+    pageSize: settings.pageSize,
+    margins: buildMargins(settings.margins),
+  };
+
+  if (deviceName) {
+    options.deviceName = deviceName;
+  }
+
+  if (settings.pageRanges.ranges) {
+    options.pageRanges = settings.pageRanges.ranges;
+  }
+
+  if (settings.headersFooters) {
+    options.header = header || 'PrintCure';
+    // Chromium uses the footer string as the printed document URL.
+    options.footer = footer || 'PrintCure';
+  }
+
+  return options;
+}
+
+async function listPrinters(webContents) {
+  const printers = await webContents.getPrintersAsync();
+  return printers.map((printer) => ({
+    name: printer.name,
+    displayName: printer.displayName || printer.name,
+    description: printer.description || '',
+  }));
+}
+
+// Returns the system printer matching the saved name. When the saved printer is
+// gone (unplugged, renamed, different PC) we fall back to the system default.
+function matchPrinter(printers, preferredName) {
+  if (!preferredName) {
+    return { printer: null, missing: null };
+  }
+
+  const wanted = preferredName.toLowerCase();
+  const printer = printers.find(
+    (item) =>
+      item.name.toLowerCase() === wanted ||
+      String(item.displayName || '').toLowerCase() === wanted
+  );
+
+  return { printer: printer ?? null, missing: printer ? null : preferredName };
+}
+
+function buildImageDocument({ mime, buffer, title }) {
+  const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>${title}</title>
+    <style>
+      html, body { margin: 0; padding: 0; }
+      body { display: flex; justify-content: center; }
+      img { display: block; width: 100%; height: auto; }
+    </style>
+  </head>
+  <body><img src="${dataUrl}" alt="" /></body>
+</html>`;
+}
+
+async function printFile({ name, mime, settings, data, printerName } = {}) {
   if (!data) {
     return { ok: false, reason: 'No file data was received.' };
   }
@@ -62,7 +235,13 @@ async function printFile({ name, mime, settings, data } = {}) {
   }
 
   if (process.env.PRINTCURE_DRY_RUN === '1') {
-    return { ok: true, dryRun: true, filePath };
+    console.log('[printcure] dry run', filePath, printSettings);
+    return {
+      ok: true,
+      dryRun: true,
+      filePath,
+      printerName: printerName || 'System default',
+    };
   }
 
   const printWindow = new BrowserWindow({
@@ -71,10 +250,12 @@ async function printFile({ name, mime, settings, data } = {}) {
   });
 
   try {
-    const printers = await printWindow.webContents.getPrintersAsync();
+    const printers = await listPrinters(printWindow.webContents);
     console.log(
       '[printcure] printers:',
-      printers.map((printer) => `${printer.name}${printer.isDefault ? ' (default)' : ''}`).join(', ') || 'none'
+      printers
+        .map((printer) => `${printer.displayName} (${printer.name})`)
+        .join(', ') || 'none'
     );
 
     if (printers.length === 0) {
@@ -85,24 +266,35 @@ async function printFile({ name, mime, settings, data } = {}) {
       };
     }
 
-    console.log('[printcure] printing', filePath, printSettings);
+    const { printer, missing } = matchPrinter(printers, printerName);
+    const usedPrinter = printer ?? null;
+    const note = missing
+      ? `"${missing}" is not available, so the system default printer was used.`
+      : '';
+
+    if (usedPrinter) {
+      console.log('[printcure] selected printer:', usedPrinter.displayName, usedPrinter.name);
+    } else if (missing) {
+      console.warn('[printcure] saved printer missing, using system default:', missing);
+    }
 
     if (isPdf) {
       await printWindow.loadURL(pathToFileURL(filePath).href);
     } else {
-      const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
-      const html = `<!doctype html>
-<html lang="en">
-  <head><meta charset="utf-8" /><title>PrintCure</title></head>
-  <body>
-    <img src="${dataUrl}" alt="" width="100%" />
-  </body>
-</html>`;
+      const html = buildImageDocument({ mime, buffer, title: safeName });
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
       await printWindow.webContents
         .executeJavaScript('document.images[0] ? document.images[0].decode() : true')
         .catch(() => true);
     }
+
+    const printOptions = buildPrintOptions(printSettings, {
+      deviceName: usedPrinter?.name,
+      header: name || 'PrintCure',
+      footer: 'PrintCure',
+    });
+
+    console.log('[printcure] printing', filePath, printOptions);
 
     await new Promise((resolve, reject) => {
       let settled = false;
@@ -113,29 +305,27 @@ async function printFile({ name, mime, settings, data } = {}) {
         }
       }, 30000);
 
-      printWindow.webContents.print(
-        {
-          silent: true,
-          printBackground: true,
-          ...printSettings,
-        },
-        (success, failureReason) => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-          clearTimeout(timer);
-          if (success) {
-            console.log('[printcure] print job accepted');
-            resolve();
-          } else {
-            reject(new Error(failureReason || 'The printer rejected the job.'));
-          }
+      printWindow.webContents.print(printOptions, (success, failureReason) => {
+        if (settled) {
+          return;
         }
-      );
+        settled = true;
+        clearTimeout(timer);
+        if (success) {
+          console.log('[printcure] print job accepted');
+          resolve();
+        } else {
+          reject(new Error(failureReason || 'The printer rejected the job.'));
+        }
+      });
     });
 
-    return { ok: true, filePath };
+    return {
+      ok: true,
+      filePath,
+      printerName: usedPrinter?.displayName || usedPrinter?.name || 'System default',
+      note,
+    };
   } catch (error) {
     console.error('[printcure] print failed:', error.message);
     return { ok: false, reason: error.message, filePath };
@@ -146,4 +336,4 @@ async function printFile({ name, mime, settings, data } = {}) {
   }
 }
 
-module.exports = { printFile };
+module.exports = { printFile, listPrinters, normalizeSettings, buildPrintOptions };

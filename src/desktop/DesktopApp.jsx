@@ -5,10 +5,12 @@ import Alert from '@hi-ui/alert';
 import Button from '@hi-ui/button';
 import Card from '@hi-ui/card';
 import Progress from '@hi-ui/progress';
+import Select from '@hi-ui/select';
 import Tag from '@hi-ui/tag';
 import { MESSAGE } from '../shared/protocol.js';
 
 const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
+const DEFAULT_PRINTER_ID = '__system_default__';
 
 function randomPeerId() {
   const random = Math.random().toString(36).slice(2, 8);
@@ -33,6 +35,13 @@ export default function DesktopApp() {
   const [transfer, setTransfer] = useState(null);
   const [printing, setPrinting] = useState(null);
   const [history, setHistory] = useState([]);
+
+  const [printers, setPrinters] = useState([]);
+  const [printerName, setPrinterName] = useState(null);
+  const [printerLoading, setPrinterLoading] = useState(false);
+  const [printerSaving, setPrinterSaving] = useState(false);
+  const [printerError, setPrinterError] = useState('');
+  const [openingId, setOpeningId] = useState('');
 
   const transfers = useRef(new Map());
 
@@ -67,6 +76,10 @@ export default function DesktopApp() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    refreshPrinters();
   }, []);
 
   useEffect(() => {
@@ -184,6 +197,79 @@ export default function DesktopApp() {
     // the LAN web URL is known so the QR link is correct.
   }, [attempt, webUrl, sessionReady]);
 
+  async function refreshPrinters() {
+    if (!bridge) {
+      return;
+    }
+
+    setPrinterLoading(true);
+    setPrinterError('');
+
+    try {
+      const [result, config] = await Promise.all([
+        bridge.getPrinters(),
+        bridge.getPrinterConfig(),
+      ]);
+
+      if (result.ok) {
+        setPrinters(result.printers ?? []);
+      } else {
+        setPrinters([]);
+        setPrinterError(result.reason || 'Could not read the printer list.');
+      }
+
+      setPrinterName(config.printerName ?? null);
+    } catch (printerLoadError) {
+      setPrinterError(printerLoadError.message);
+    } finally {
+      setPrinterLoading(false);
+    }
+  }
+
+  async function handlePrinterChange(value) {
+    if (!bridge) {
+      return;
+    }
+
+    const next = value === DEFAULT_PRINTER_ID ? null : String(value);
+    setPrinterName(next);
+    setPrinterSaving(true);
+    setPrinterError('');
+
+    try {
+      const result = await bridge.setPrinter(next);
+      if (!result.ok) {
+        setPrinterError(result.reason || 'Could not save the printer.');
+      } else {
+        setPrinterName(result.printerName ?? null);
+      }
+    } catch (printerSaveError) {
+      setPrinterError(printerSaveError.message);
+    } finally {
+      setPrinterSaving(false);
+    }
+  }
+
+  async function openReceived(item) {
+    if (!bridge || !item.filePath) {
+      return;
+    }
+
+    setOpeningId(item.id);
+    setError('');
+
+    try {
+      const result = await bridge.openFile(item.filePath);
+      if (!result.ok) {
+        setError(`Could not open ${item.name}: ${result.reason}`);
+      }
+    } catch (openError) {
+      setError(`Could not open ${item.name}: ${openError.message}`);
+    } finally {
+      setOpeningId('');
+    }
+  }
+
   async function finishTransfer(connection, fileId) {
     const item = transfers.current.get(fileId);
     if (!item) {
@@ -219,6 +305,9 @@ export default function DesktopApp() {
           name: item.meta.name,
           ok: Boolean(result.ok),
           reason: result.reason ?? '',
+          note: result.note ?? '',
+          printerName: result.printerName ?? '',
+          filePath: result.filePath ?? '',
           time: new Date().toLocaleTimeString(),
         },
         ...items,
@@ -233,6 +322,8 @@ export default function DesktopApp() {
         fileId,
         ok: Boolean(result.ok),
         reason: result.reason ?? '',
+        printerName: result.printerName ?? '',
+        note: result.note ?? '',
       });
     } catch (transferError) {
       setError(`Could not print the file: ${transferError.message}`);
@@ -282,6 +373,26 @@ export default function DesktopApp() {
           ? 'Error'
           : 'Waiting';
 
+  const printerOptions = [
+    { id: DEFAULT_PRINTER_ID, title: 'System default printer' },
+    ...printers.map((printer) => ({
+      id: printer.name,
+      title: printer.displayName || printer.name,
+    })),
+  ];
+
+  const missingPrinter =
+    Boolean(printerName) &&
+    !printerLoading &&
+    !printers.some((printer) => printer.name === printerName);
+
+  if (missingPrinter) {
+    printerOptions.push({
+      id: printerName,
+      title: `${printerName} (not found)`,
+    });
+  }
+
   return (
     <div className="page">
       <header className="page-header">
@@ -297,43 +408,95 @@ export default function DesktopApp() {
       {error && <Alert type="danger" title={error} />}
 
       <div className="page-grid">
-        <Card title="Scan to connect">
-          <div className="qr-wrap">
-            {qr ? (
-              <img
-                src={qr}
-                alt="QR code to open the PrintCure web app"
-                width="240"
-                height="240"
-              />
-            ) : (
-              <p className="muted">Creating your QR code...</p>
+        <div className="column">
+          <Card title="Scan to connect">
+            <div className="qr-wrap">
+              {qr ? (
+                <img
+                  src={qr}
+                  alt="QR code to open the PrintCure web app"
+                  width="240"
+                  height="240"
+                />
+              ) : (
+                <p className="muted">Creating your QR code...</p>
+              )}
+            </div>
+
+            <p className="muted">Open your phone camera and scan this code.</p>
+
+            {link && (
+              <p className="link-row">
+                <a href={link}>{link}</a>
+              </p>
             )}
-          </div>
 
-          <p className="muted">Open your phone camera and scan this code.</p>
+            {peerId && (
+              <p className="muted">
+                Peer ID <code>{peerId}</code>
+              </p>
+            )}
 
-          {link && (
-            <p className="link-row">
-              <a href={link}>{link}</a>
-            </p>
-          )}
+            <div className="actions">
+              <Button appearance="line" onClick={() => setAttempt((value) => value + 1)}>
+                New QR code
+              </Button>
+            </div>
+          </Card>
 
-          {peerId && (
-            <p className="muted">
-              Peer ID <code>{peerId}</code>
-            </p>
-          )}
+          <Card
+            title="Printer"
+            extra={
+              <Button
+                size="sm"
+                appearance="text"
+                onClick={refreshPrinters}
+                disabled={printerLoading || !bridge}
+              >
+                Refresh
+              </Button>
+            }
+          >
+            {!bridge ? (
+              <p className="muted">Printer selection is available in the desktop app.</p>
+            ) : (
+              <>
+                <div className="field">
+                  <span className="field-label">Print received files on</span>
+                  <Select
+                    data={printerOptions}
+                    value={printerName ?? DEFAULT_PRINTER_ID}
+                    onChange={handlePrinterChange}
+                    disabled={printerLoading || printerSaving}
+                    placeholder="Choose a printer"
+                  />
+                </div>
 
-          <div className="actions">
-            <Button
-              appearance="line"
-              onClick={() => setAttempt((value) => value + 1)}
-            >
-              New QR code
-            </Button>
-          </div>
-        </Card>
+                <p className="muted printer-note">
+                  Saved automatically. Every new file is sent straight to this printer without asking.
+                </p>
+
+                {printerSaving && <p className="muted">Saving printer...</p>}
+
+                {missingPrinter && (
+                  <Alert
+                    type="warning"
+                    title={`"${printerName}" is not connected right now. The system default printer will be used until it is back.`}
+                  />
+                )}
+
+                {!printerLoading && printers.length === 0 && (
+                  <Alert
+                    type="warning"
+                    title="No printer was found. Connect a printer, then press Refresh."
+                  />
+                )}
+
+                {printerError && <Alert type="danger" title={printerError} />}
+              </>
+            )}
+          </Card>
+        </div>
 
         <Card title="Received files">
           {transfer && (
@@ -348,25 +511,38 @@ export default function DesktopApp() {
           {printing && <p className="muted">Printing {printing}...</p>}
 
           {history.length === 0 ? (
-            <p className="muted">
-              No files yet. Scan the QR code to send your first file.
-            </p>
+            <p className="muted">No files yet. Scan the QR code to send your first file.</p>
           ) : (
             <ul className="file-list">
               {history.map((item) => (
                 <li key={item.id} className="file-item">
-                  <span>
+                  <div className="file-item-main">
                     <strong>{item.name}</strong>
-                    <time>{item.time}</time>
-                  </span>
-                  <span title={item.reason}>
-                    <Tag
-                      type={item.ok ? 'success' : 'danger'}
-                      appearance="filled"
-                    >
-                      {item.ok ? 'Printed' : 'Failed'}
-                    </Tag>
-                  </span>
+                    <time>
+                      {item.time}
+                      {item.printerName ? ` · ${item.printerName}` : ''}
+                    </time>
+                    {item.note && <span className="muted file-note">{item.note}</span>}
+                  </div>
+
+                  <div className="file-actions">
+                    {item.filePath && (
+                      <Button
+                        size="sm"
+                        appearance="line"
+                        onClick={() => openReceived(item)}
+                        loading={openingId === item.id}
+                      >
+                        Open
+                      </Button>
+                    )}
+
+                    <span title={item.reason}>
+                      <Tag type={item.ok ? 'success' : 'danger'} appearance="filled">
+                        {item.ok ? 'Printed' : 'Failed'}
+                      </Tag>
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

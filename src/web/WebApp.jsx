@@ -4,6 +4,7 @@ import Alert from '@hi-ui/alert';
 import Button from '@hi-ui/button';
 import Card from '@hi-ui/card';
 import Checkbox from '@hi-ui/checkbox';
+import Input from '@hi-ui/input';
 import NumberInput from '@hi-ui/number-input';
 import Progress from '@hi-ui/progress';
 import Select from '@hi-ui/select';
@@ -13,13 +14,47 @@ import {
   MAX_FILE_BYTES,
   MAX_WAIT_MS,
   MESSAGE,
+  PAGES_PER_SHEET,
   PAGE_SIZES,
+  PAPER_DIMENSIONS,
+  parsePageRanges,
 } from '../shared/protocol.js';
 import { sendFile } from './send-file.js';
 
 const desktopId = new URLSearchParams(window.location.search).get('peer') ?? '';
 
 const PAGE_SIZE_DATA = PAGE_SIZES.map((size) => ({ id: size, title: size }));
+const PAGE_RANGE_DATA = [
+  { id: 'all', title: 'All pages' },
+  { id: 'custom', title: 'Custom range' },
+];
+const ORIENTATION_DATA = [
+  { id: 'portrait', title: 'Portrait' },
+  { id: 'landscape', title: 'Landscape' },
+];
+const COLOR_DATA = [
+  { id: 'color', title: 'Color' },
+  { id: 'grayscale', title: 'Black and white' },
+];
+const SHEET_DATA = PAGES_PER_SHEET.map((count) => ({
+  id: String(count),
+  title: count === 1 ? '1 page per sheet' : `${count} pages per sheet`,
+}));
+const MARGIN_DATA = [
+  { id: 'default', title: 'Default' },
+  { id: 'none', title: 'None' },
+  { id: 'minimum', title: 'Minimum' },
+  { id: 'custom', title: 'Custom' },
+];
+const DUPLEX_DATA = [
+  { id: 'simplex', title: 'One-sided' },
+  { id: 'longEdge', title: 'Two-sided (long edge)' },
+  { id: 'shortEdge', title: 'Two-sided (short edge)' },
+];
+
+function toNumber(value, fallback) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
 
 export default function WebApp() {
   const [attempt, setAttempt] = useState(0);
@@ -134,6 +169,20 @@ export default function WebApp() {
     setSettings((current) => ({ ...current, [name]: value }));
   }
 
+  function updatePageRanges(patch) {
+    setSettings((current) => ({
+      ...current,
+      pageRanges: { ...current.pageRanges, ...patch },
+    }));
+  }
+
+  function updateMargin(name, value) {
+    setSettings((current) => ({
+      ...current,
+      margins: { ...current.margins, [name]: value },
+    }));
+  }
+
   async function handleSend() {
     if (!file || !connectionRef.current) {
       return;
@@ -169,8 +218,13 @@ export default function WebApp() {
       const result = await resultPromise;
 
       if (result.ok) {
+        const printer = result.printerName ? ` on ${result.printerName}` : '';
         setMessageType('success');
-        setMessage('File received by the desktop app and sent to the printer.');
+        setMessage(
+          `File received by the desktop app and printed${printer}.${
+            result.note ? ` ${result.note}` : ''
+          }`
+        );
       } else {
         setMessage('');
         setError(`The desktop app could not print the file: ${result.reason}`);
@@ -186,6 +240,31 @@ export default function WebApp() {
   }
 
   const connected = status === 'connected';
+  const isLandscape = settings.orientation === 'landscape';
+  const customRange = settings.pageRanges.mode === 'custom';
+  const pageRanges = customRange ? parsePageRanges(settings.pageRanges.value) : null;
+  const pageRangeError = customRange && !pageRanges;
+
+  const dimensions = PAPER_DIMENSIONS[settings.pageSize] ?? PAPER_DIMENSIONS.A4;
+  const paperWidth = isLandscape ? dimensions.height : dimensions.width;
+  const paperHeight = isLandscape ? dimensions.width : dimensions.height;
+  const paperAspect = paperWidth / paperHeight;
+
+  const marginValues =
+    settings.margins.type === 'none'
+      ? { top: 0, bottom: 0, left: 0, right: 0 }
+      : settings.margins.type === 'minimum'
+        ? { top: 5, bottom: 5, left: 5, right: 5 }
+        : settings.margins.type === 'custom'
+          ? settings.margins
+          : { top: 10, bottom: 10, left: 10, right: 10 };
+
+  const marginPadding = {
+    top: Math.min(20, (marginValues.top / paperWidth) * 100),
+    right: Math.min(20, (marginValues.right / paperWidth) * 100),
+    bottom: Math.min(20, (marginValues.bottom / paperWidth) * 100),
+    left: Math.min(20, (marginValues.left / paperWidth) * 100),
+  };
 
   const statusTag =
     status === 'connected'
@@ -205,23 +284,29 @@ export default function WebApp() {
           ? 'Offline'
           : 'Connecting';
 
-  let preview = null;
-  if (file && previewUrl) {
-    if (file.type.startsWith('image/')) {
-      preview = <img src={previewUrl} alt="Preview of the selected file" />;
-    } else if (file.type === 'application/pdf') {
-      preview = <iframe src={previewUrl} title="PDF preview" />;
-    } else {
-      preview = <p className="muted">Preview is not available for this file type.</p>;
-    }
-  }
+  const marginLabel = MARGIN_DATA.find((item) => item.id === settings.margins.type)?.title;
+  const duplexLabel = DUPLEX_DATA.find((item) => item.id === settings.duplex)?.title;
+
+  const summary = [
+    `${settings.copies} ${settings.copies === 1 ? 'copy' : 'copies'}`,
+    settings.pageSize,
+    isLandscape ? 'Landscape' : 'Portrait',
+    `${settings.scale}%`,
+    settings.color === 'grayscale' ? 'Black and white' : 'Color',
+    customRange ? `Pages ${settings.pageRanges.value || '?'}` : 'All pages',
+    settings.pagesPerSheet > 1 ? `${settings.pagesPerSheet} per sheet` : '',
+    duplexLabel,
+    marginLabel ? `${marginLabel} margins` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="page page--narrow">
       <header className="page-header">
         <div>
           <h1>PrintCure</h1>
-          <p className="muted">Upload, preview and print from your phone.</p>
+          <p className="muted">Upload, customize and print from your phone.</p>
         </div>
         <Tag type={statusTag} appearance="filled">
           {statusLabel}
@@ -233,10 +318,7 @@ export default function WebApp() {
           Desktop peer <code>{desktopId}</code>
         </p>
       ) : (
-        <Alert
-          type="danger"
-          title="Open this page by scanning the QR code in the desktop app."
-        />
+        <Alert type="danger" title="Open this page by scanning the QR code in the desktop app." />
       )}
 
       {error && <Alert type="danger" title={error} />}
@@ -265,66 +347,220 @@ export default function WebApp() {
             {file ? (
               <span className="file-meta">
                 <strong>{file.name}</strong>
-                <span className="muted">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </span>
+                <span className="muted">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
               </span>
             ) : (
               <span className="muted">Images or PDF, up to 50 MB</span>
             )}
           </div>
-
-          {preview && <div className="preview">{preview}</div>}
         </Card>
 
         <Card title="2. Customize">
-          <div className="settings">
+          <div className="paper-stage">
+            <div
+              className="paper"
+              style={{
+                '--paper-aspect': paperAspect,
+                padding: `${marginPadding.top}% ${marginPadding.right}% ${marginPadding.bottom}% ${marginPadding.left}%`,
+              }}
+            >
+              <div
+                className="paper-content"
+                style={{ transform: `scale(${settings.scale / 100})` }}
+              >
+                {file && previewUrl ? (
+                  file.type.startsWith('image/') ? (
+                    <img src={previewUrl} alt="Print preview" />
+                  ) : file.type === 'application/pdf' ? (
+                    <iframe src={`${previewUrl}#toolbar=0&navpanes=0`} title="PDF preview" />
+                  ) : (
+                    <span className="paper-empty">No preview for this file type</span>
+                  )
+                ) : (
+                  <span className="paper-empty">Choose a file to preview the page</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="paper-caption">
+            <Tag size="sm" appearance="line">
+              {settings.pageSize}
+            </Tag>
+            <Tag size="sm" appearance="line">
+              {isLandscape ? 'Landscape' : 'Portrait'}
+            </Tag>
+            <Tag size="sm" appearance="line">
+              {settings.scale}%
+            </Tag>
+            <Tag size="sm" appearance="line">
+              {marginLabel} margins
+            </Tag>
+            {settings.color === 'grayscale' && (
+              <Tag size="sm" appearance="line">
+                Black and white
+              </Tag>
+            )}
+          </div>
+
+          <div className="settings-grid">
             <div className="field">
-              <span>Copies</span>
+              <span className="field-label">Pages</span>
+              <Select
+                data={PAGE_RANGE_DATA}
+                value={settings.pageRanges.mode}
+                onChange={(value) => updatePageRanges({ mode: String(value) })}
+              />
+            </div>
+
+            {customRange && (
+              <div className="field">
+                <span className="field-label">Page range</span>
+                <Input
+                  value={settings.pageRanges.value}
+                  placeholder="e.g. 1-3, 5, 8"
+                  onChange={(_event, value) => updatePageRanges({ value })}
+                />
+              </div>
+            )}
+
+            <div className="field">
+              <span className="field-label">Copies</span>
               <NumberInput
                 value={settings.copies}
                 min={1}
                 max={99}
-                onChange={(value) => updateSetting('copies', value ?? 1)}
+                onChange={(value) => updateSetting('copies', toNumber(value, 1))}
               />
             </div>
 
             <div className="field">
-              <span>Page size</span>
+              <span className="field-label">Layout</span>
+              <Select
+                data={ORIENTATION_DATA}
+                value={settings.orientation}
+                onChange={(value) => updateSetting('orientation', String(value))}
+              />
+            </div>
+
+            <div className="field">
+              <span className="field-label">Color</span>
+              <Select
+                data={COLOR_DATA}
+                value={settings.color}
+                onChange={(value) => updateSetting('color', String(value))}
+              />
+            </div>
+
+            <div className="field">
+              <span className="field-label">Paper size</span>
               <Select
                 data={PAGE_SIZE_DATA}
                 value={settings.pageSize}
-                onChange={(selectedId) => updateSetting('pageSize', String(selectedId))}
+                onChange={(value) => updateSetting('pageSize', String(value))}
               />
             </div>
 
             <div className="field">
-              <Checkbox
-                checked={settings.landscape}
-                onChange={(event) => updateSetting('landscape', event.target.checked)}
-              >
-                Landscape
-              </Checkbox>
+              <span className="field-label">Pages per sheet</span>
+              <Select
+                data={SHEET_DATA}
+                value={String(settings.pagesPerSheet)}
+                onChange={(value) => updateSetting('pagesPerSheet', Number(value))}
+              />
             </div>
+
+            <div className="field">
+              <span className="field-label">Margins</span>
+              <Select
+                data={MARGIN_DATA}
+                value={settings.margins.type}
+                onChange={(value) => updateMargin('type', String(value))}
+              />
+            </div>
+
+            <div className="field">
+              <span className="field-label">Scale</span>
+              <NumberInput
+                value={settings.scale}
+                min={10}
+                max={200}
+                suffix="%"
+                onChange={(value) => updateSetting('scale', toNumber(value, 100))}
+              />
+            </div>
+
+            <div className="field">
+              <span className="field-label">Two-sided</span>
+              <Select
+                data={DUPLEX_DATA}
+                value={settings.duplex}
+                onChange={(value) => updateSetting('duplex', String(value))}
+              />
+            </div>
+          </div>
+
+          {pageRangeError && (
+            <p className="field-error">
+              Enter page numbers like 1-3, 5. Separate each range with a comma.
+            </p>
+          )}
+
+          {settings.margins.type === 'custom' && (
+            <div className="margin-grid">
+              {['top', 'bottom', 'left', 'right'].map((side) => (
+                <div className="field" key={side}>
+                  <span className="field-label">{side[0].toUpperCase() + side.slice(1)} (mm)</span>
+                  <NumberInput
+                    value={settings.margins[side]}
+                    min={0}
+                    max={100}
+                    onChange={(value) => updateMargin(side, toNumber(value, 0))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="options-row">
+            <Checkbox
+              checked={settings.printBackground}
+              onChange={(event) => updateSetting('printBackground', event.target.checked)}
+            >
+              Background graphics
+            </Checkbox>
+
+            <Checkbox
+              checked={settings.headersFooters}
+              onChange={(event) => updateSetting('headersFooters', event.target.checked)}
+            >
+              Headers and footers
+            </Checkbox>
+
+            <Checkbox
+              checked={settings.collate}
+              onChange={(event) => updateSetting('collate', event.target.checked)}
+            >
+              Collate copies
+            </Checkbox>
           </div>
         </Card>
 
         <Card title="3. Send and print">
+          <p className="muted summary-line">{summary}</p>
+
           <div className="actions">
             <Button
               type="primary"
               onClick={handleSend}
-              disabled={!file || !connected || busy}
+              disabled={!file || !connected || busy || pageRangeError}
               loading={busy}
             >
               {busy ? 'Sending...' : 'Send to desktop and print'}
             </Button>
 
             {!connected && (
-              <Button
-                appearance="line"
-                onClick={() => setAttempt((value) => value + 1)}
-              >
+              <Button appearance="line" onClick={() => setAttempt((value) => value + 1)}>
                 Reconnect
               </Button>
             )}
