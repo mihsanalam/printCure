@@ -12,7 +12,11 @@ export async function sendFile(connection, file, settings, onProgress) {
     );
   }
 
-  const fileId = crypto.randomUUID();
+  if (!connection.open) {
+    throw new Error('The connection to the desktop app is not open. Reconnect and try again.');
+  }
+
+  const fileId = createFileId();
 
   connection.send({
     type: MESSAGE.FILE_START,
@@ -55,4 +59,13 @@ function waitForBuffer(connection, limit = BUFFER_HIGH_WATER) {
     };
     check();
   });
+}
+
+// crypto.randomUUID only exists in secure contexts. The web app is often
+// opened over plain HTTP on the LAN, so fall back to a simple unique id.
+function createFileId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `file-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

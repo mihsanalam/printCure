@@ -71,6 +71,22 @@ async function printFile({ name, mime, settings, data } = {}) {
   });
 
   try {
+    const printers = await printWindow.webContents.getPrintersAsync();
+    console.log(
+      '[printcure] printers:',
+      printers.map((printer) => `${printer.name}${printer.isDefault ? ' (default)' : ''}`).join(', ') || 'none'
+    );
+
+    if (printers.length === 0) {
+      return {
+        ok: false,
+        reason: 'No printer is installed or Windows did not report any printer.',
+        filePath,
+      };
+    }
+
+    console.log('[printcure] printing', filePath, printSettings);
+
     if (isPdf) {
       await printWindow.loadURL(pathToFileURL(filePath).href);
     } else {
@@ -89,6 +105,14 @@ async function printFile({ name, mime, settings, data } = {}) {
     }
 
     await new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error('The printer did not respond within 30 seconds.'));
+        }
+      }, 30000);
+
       printWindow.webContents.print(
         {
           silent: true,
@@ -96,7 +120,13 @@ async function printFile({ name, mime, settings, data } = {}) {
           ...printSettings,
         },
         (success, failureReason) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
           if (success) {
+            console.log('[printcure] print job accepted');
             resolve();
           } else {
             reject(new Error(failureReason || 'The printer rejected the job.'));
@@ -107,6 +137,7 @@ async function printFile({ name, mime, settings, data } = {}) {
 
     return { ok: true, filePath };
   } catch (error) {
+    console.error('[printcure] print failed:', error.message);
     return { ok: false, reason: error.message, filePath };
   } finally {
     if (!printWindow.isDestroyed()) {

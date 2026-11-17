@@ -26,6 +26,7 @@ export default function DesktopApp() {
   const [qr, setQr] = useState('');
   const [link, setLink] = useState('');
   const [transfer, setTransfer] = useState(null);
+  const [printing, setPrinting] = useState(null);
   const [history, setHistory] = useState([]);
 
   const transfers = useRef(new Map());
@@ -87,9 +88,25 @@ export default function DesktopApp() {
     });
 
     peer.on('connection', (connection) => {
-      setStatus('connected');
+      setStatus('linking');
+      setError('');
 
-      connection.on('open', () => setStatus('connected'));
+      let isOpen = false;
+      const linkTimer = setTimeout(() => {
+        if (!isOpen) {
+          setStatus('waiting');
+          setError(
+            'A phone was found but the direct link could not be established. ' +
+              'Check that both devices are on the same Wi-Fi, allow Electron through the firewall, and try again.'
+          );
+        }
+      }, 15000);
+
+      connection.on('open', () => {
+        isOpen = true;
+        clearTimeout(linkTimer);
+        setStatus('connected');
+      });
 
       connection.on('data', (message) => {
         if (!message || typeof message !== 'object') {
@@ -166,6 +183,7 @@ export default function DesktopApp() {
       return;
     }
     transfers.current.delete(fileId);
+    setPrinting(item.meta.name);
 
     try {
       const blob = new Blob(item.chunks, {
@@ -199,6 +217,10 @@ export default function DesktopApp() {
         ...items,
       ]);
 
+      if (!result.ok) {
+        setError(`Could not print ${item.meta.name}: ${result.reason}`);
+      }
+
       connection.send({
         type: MESSAGE.FILE_RESULT,
         fileId,
@@ -215,6 +237,7 @@ export default function DesktopApp() {
       });
     } finally {
       setTransfer(null);
+      setPrinting(null);
     }
   }
 
@@ -264,6 +287,8 @@ export default function DesktopApp() {
           Receiving {transfer.name}: {percent}%
         </p>
       )}
+
+      {printing && <p role="status">Printing {printing}...</p>}
 
       <h2>Received files</h2>
       {history.length === 0 ? (

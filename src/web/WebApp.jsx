@@ -139,6 +139,7 @@ export default function WebApp() {
 
     try {
       await sendFile(connectionRef.current, file, settings, setProgress);
+      setMessage('File sent. Waiting for the desktop app to finish printing...');
       const result = await resultPromise;
       setMessage(
         result.ok
