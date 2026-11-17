@@ -3,7 +3,9 @@
 Send a file from your phone to your Windows PC and print it, with no file
 server in between. Files travel peer to peer over PeerJS (WebRTC).
 
-No CSS is used anywhere - the UI is plain semantic HTML structure.
+The interface uses Xiaomi's [HiUI](https://github.com/XiaoMi/hiui) design system
+(Card, Button, Select, NumberInput, Checkbox, Progress, Alert, Tag) with a small
+layout stylesheet in `src/styles/base.css`.
 
 ## How it works
 

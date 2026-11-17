@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import Peer from 'peerjs';
 import QRCode from 'qrcode';
+import Alert from '@hi-ui/alert';
+import Button from '@hi-ui/button';
+import Card from '@hi-ui/card';
+import Progress from '@hi-ui/progress';
+import Tag from '@hi-ui/tag';
 import { MESSAGE } from '../shared/protocol.js';
 
 const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
@@ -248,9 +253,9 @@ export default function DesktopApp() {
       ? Math.min(100, Math.round((transfer.received / transfer.size) * 100))
       : 0;
 
-  let statusText = 'Starting PeerJS...';
+  let statusText = 'Starting the connection...';
   if (status === 'waiting') {
-    statusText = 'Waiting for the phone to connect...';
+    statusText = 'Waiting for a phone to connect.';
   } else if (status === 'linking') {
     statusText = 'Phone found. Opening the direct connection...';
   } else if (status === 'connected') {
@@ -259,60 +264,115 @@ export default function DesktopApp() {
     statusText = 'Something went wrong.';
   }
 
+  const statusTag =
+    status === 'connected'
+      ? 'success'
+      : status === 'linking'
+        ? 'warning'
+        : status === 'error'
+          ? 'danger'
+          : 'primary';
+
+  const statusLabel =
+    status === 'connected'
+      ? 'Connected'
+      : status === 'linking'
+        ? 'Connecting'
+        : status === 'error'
+          ? 'Error'
+          : 'Waiting';
+
   return (
-    <main>
-      <h1>PrintCure Desktop</h1>
-      <p>Scan the QR code with your phone to open the web app.</p>
+    <div className="page">
+      <header className="page-header">
+        <div>
+          <h1>PrintCure</h1>
+          <p className="muted">{statusText}</p>
+        </div>
+        <Tag type={statusTag} appearance="filled">
+          {statusLabel}
+        </Tag>
+      </header>
 
-      <p>Status: {statusText}</p>
-      {error && <p role="alert">{error}</p>}
+      {error && <Alert type="danger" title={error} />}
 
-      {qr && (
-        <figure>
-          <img src={qr} alt="QR code to open the PrintCure web app" width="280" height="280" />
-          <figcaption>Point your phone camera at this code.</figcaption>
-        </figure>
-      )}
+      <div className="page-grid">
+        <Card title="Scan to connect">
+          <div className="qr-wrap">
+            {qr ? (
+              <img
+                src={qr}
+                alt="QR code to open the PrintCure web app"
+                width="240"
+                height="240"
+              />
+            ) : (
+              <p className="muted">Creating your QR code...</p>
+            )}
+          </div>
 
-      {link && (
-        <p>
-          Or open this link on your phone: <a href={link}>{link}</a>
-        </p>
-      )}
+          <p className="muted">Open your phone camera and scan this code.</p>
 
-      {peerId && (
-        <p>
-          Peer ID: <code>{peerId}</code>
-        </p>
-      )}
+          {link && (
+            <p className="link-row">
+              <a href={link}>{link}</a>
+            </p>
+          )}
 
-      {transfer && (
-        <p role="status">
-          Receiving {transfer.name}: {percent}%
-        </p>
-      )}
+          {peerId && (
+            <p className="muted">
+              Peer ID <code>{peerId}</code>
+            </p>
+          )}
 
-      {printing && <p role="status">Printing {printing}...</p>}
+          <div className="actions">
+            <Button
+              appearance="line"
+              onClick={() => setAttempt((value) => value + 1)}
+            >
+              New QR code
+            </Button>
+          </div>
+        </Card>
 
-      <h2>Received files</h2>
-      {history.length === 0 ? (
-        <p>No files received yet.</p>
-      ) : (
-        <ol>
-          {history.map((item) => (
-            <li key={item.id}>
-              {item.name} - {item.time} -{' '}
-              {item.ok ? 'sent to printer' : `failed: ${item.reason}`}
-            </li>
-          ))}
-        </ol>
-      )}
+        <Card title="Received files">
+          {transfer && (
+            <div className="progress-block">
+              <span>
+                Receiving {transfer.name} - {percent}%
+              </span>
+              <Progress percent={percent} />
+            </div>
+          )}
 
-      <p>
-        <button type="button" onClick={() => setAttempt((value) => value + 1)}>
-          Generate a new QR code
-        </button>
-      </p>
-    </main>
+          {printing && <p className="muted">Printing {printing}...</p>}
+
+          {history.length === 0 ? (
+            <p className="muted">
+              No files yet. Scan the QR code to send your first file.
+            </p>
+          ) : (
+            <ul className="file-list">
+              {history.map((item) => (
+                <li key={item.id} className="file-item">
+                  <span>
+                    <strong>{item.name}</strong>
+                    <time>{item.time}</time>
+                  </span>
+                  <span title={item.reason}>
+                    <Tag
+                      type={item.ok ? 'success' : 'danger'}
+                      appearance="filled"
+                    >
+                      {item.ok ? 'Printed' : 'Failed'}
+                    </Tag>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 }

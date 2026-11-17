@@ -36,6 +36,8 @@
     }
   },
   "dependencies": {
+    "@hi-ui/core": "^5.0.0",
+    "@hi-ui/hiui": "^5.0.0",
     "peerjs": "^1.5.5",
     "qrcode": "^1.5.4",
     "react": "^19.3.1",
