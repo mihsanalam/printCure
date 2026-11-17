@@ -1,44 +1,71 @@
 # PrintCure
 
-One app, two targets: it runs in the browser **and** as a Windows desktop app.
+One app, two targets: the same codebase will run in the browser **and** as a
+Windows desktop app.
 
-- `src/` — the shared app (React + Vite). Used by both targets.
-- `electron/` — thin Windows shell. Only the desktop build uses it.
-- `src/services/system/` — the single platform bridge. Browser falls back to Web APIs; the desktop build talks to `electron/main/system/`.
+This repository currently contains the project setup only. No application code
+has been written yet.
 
 ## Requirements
 
 - Node.js 20 or newer
 - npm
 
-## Install
+## Setup
 
 ```bash
 npm install
 ```
 
-## Run
+## Scripts
 
 ```bash
-npm run dev:web       # browser at http://localhost:5173
-npm run dev:desktop   # Windows desktop window (Vite + Electron)
+npm run dev:web       # start the web dev server (Vite)
+npm run dev:desktop   # start Vite + Electron together
+npm run build:web     # build the static web app into dist/
+npm run preview:web   # preview the web build
+npm run start:desktop # run Electron against the built dist/
+npm run dist:desktop  # build the Windows installer into release/
 ```
 
-## Build
+## Structure
 
-```bash
-npm run build:web     # static site in dist/
-npm run dist:desktop  # Windows installer in release/
+```text
+src/                  # shared app code (web + desktop)
+  components/         # reusable UI
+  pages/              # screens
+  routes/             # routing
+  layouts/            # page shells
+  hooks/              # shared hooks
+  services/api/       # backend calls
+  services/system/    # single bridge for web/desktop differences
+  store/              # state
+  styles/             # stylesheets
+  types/              # types
+  utils/              # helpers
+public/               # static assets
+electron/             # Windows desktop shell (desktop build only)
+  main/               # main process
+    ipc/              # renderer <-> main channels
+    windows/          # window management
+    system/           # Windows system functions
+  preload/            # context bridge
+  shared/             # constants shared across processes
+resources/            # app icons, tray icons
+build/                # installer / packaging assets
+tests/                # unit and e2e tests
+scripts/              # helper scripts
 ```
 
 ## Windows system functions
 
-Native integrations live in `electron/main/system/` and are exposed to the UI
-through preload + IPC. The basic app already includes:
+Planned homes for native integrations:
 
 - `notifications/` — Windows toast notifications
-- `tray/` — tray icon (placeholder folder)
-- `auto-launch/` — start with Windows (placeholder folder)
-- `power/` — sleep, shutdown and lock events (placeholder folder)
-- `file-dialogs/` — native open/save dialogs (placeholder folder)
-- `registry/`, `shortcuts/`, `updater/` — placeholders for later
+- `tray/` — tray icon and menu
+- `auto-launch/` — start with Windows
+- `power/` — sleep, shutdown and lock events
+- `file-dialogs/` — native open/save dialogs
+- `registry/` — registry and protocol handlers
+- `shortcuts/` — global hotkeys and shortcuts
+- `updater/` — auto-update hooks
