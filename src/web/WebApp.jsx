@@ -42,7 +42,20 @@ export default function WebApp() {
       const connection = peer.connect(desktopId, { reliable: true });
       connectionRef.current = connection;
 
-      connection.on('open', () => setStatus('connected'));
+      const openTimer = setTimeout(() => {
+        if (connectionRef.current === connection && !connection.open) {
+          setStatus('error');
+          setError(
+            'The desktop app was found but the direct connection could not be opened. ' +
+              'Keep both devices on the same Wi-Fi, check the firewall, then press Reconnect.'
+          );
+        }
+      }, 15000);
+
+      connection.on('open', () => {
+        clearTimeout(openTimer);
+        setStatus('connected');
+      });
 
       connection.on('data', (data) => {
         if (data?.type === MESSAGE.FILE_RESULT) {

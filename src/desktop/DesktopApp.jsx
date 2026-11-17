@@ -149,6 +149,8 @@ export default function DesktopApp() {
       });
 
       connection.on('close', () => {
+        isOpen = false;
+        clearTimeout(linkTimer);
         setStatus('waiting');
       });
 
@@ -249,6 +251,8 @@ export default function DesktopApp() {
   let statusText = 'Starting PeerJS...';
   if (status === 'waiting') {
     statusText = 'Waiting for the phone to connect...';
+  } else if (status === 'linking') {
+    statusText = 'Phone found. Opening the direct connection...';
   } else if (status === 'connected') {
     statusText = 'Phone connected. Ready to receive files.';
   } else if (status === 'error') {
