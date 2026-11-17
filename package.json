@@ -1,0 +1,51 @@
+{
+  "name": "printcure",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PrintCure - one app that runs in the browser and as a Windows desktop app",
+  "main": "electron/main/index.cjs",
+  "type": "module",
+  "scripts": {
+    "dev:web": "vite",
+    "dev:desktop": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "build:web": "vite build",
+    "preview:web": "vite preview",
+    "start:desktop": "electron .",
+    "dist:desktop": "npm run build:web && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.printcure.app",
+    "productName": "PrintCure",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "concurrently": "^10.0.7",
+    "cross-env": "^10.1.0",
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0",
+    "vite": "^8.3.8",
+    "wait-on": "^9.5.1"
+  }
+}
