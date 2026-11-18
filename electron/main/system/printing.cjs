@@ -208,6 +208,44 @@ function buildImageDocument({ mime, buffer, title }) {
 </html>`;
 }
 
+// Chromium rejects very long data: URLs passed to loadURL with ERR_INVALID_URL,
+// so the document is written to disk and loaded with loadFile instead. The image
+// stays embedded in the HTML, where large data URLs are allowed.
+async function writeImageDocument(directory, { mime, buffer, title }) {
+  const html = buildImageDocument({ mime, buffer, title });
+  const htmlPath = path.join(
+    directory,
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-print.html`
+  );
+  await fs.writeFile(htmlPath, html, 'utf8');
+  return htmlPath;
+}
+
+// A hidden window can report did-finish-load before the image has decoded.
+// Printing at that point silently produces a blank page, so wait explicitly.
+async function waitForImage(webContents, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await webContents
+      .executeJavaScript(
+        `(() => {
+          const img = document.images[0];
+          if (!img) return 'missing';
+          if (!img.complete) return 'loading';
+          return img.naturalWidth > 0 ? 'ready' : 'error';
+        })()`
+      )
+      .catch(() => 'error');
+
+    if (state === 'ready') return;
+    if (state === 'error' || state === 'missing') {
+      throw new Error('The image could not be loaded for printing.');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('Timed out while loading the image for printing.');
+}
+
 async function printFile({ name, mime, settings, data, printerName } = {}) {
   if (!data) {
     return { ok: false, reason: 'No file data was received.' };
@@ -244,6 +282,7 @@ async function printFile({ name, mime, settings, data, printerName } = {}) {
     };
   }
 
+  let htmlPath = null;
   const printWindow = new BrowserWindow({
     show: false,
     webPreferences: { sandbox: true },
@@ -281,11 +320,13 @@ async function printFile({ name, mime, settings, data, printerName } = {}) {
     if (isPdf) {
       await printWindow.loadURL(pathToFileURL(filePath).href);
     } else {
-      const html = buildImageDocument({ mime, buffer, title: safeName });
-      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-      await printWindow.webContents
-        .executeJavaScript('document.images[0] ? document.images[0].decode() : true')
-        .catch(() => true);
+      htmlPath = await writeImageDocument(directory, {
+        mime,
+        buffer,
+        title: safeName,
+      });
+      await printWindow.loadFile(htmlPath);
+      await waitForImage(printWindow.webContents);
     }
 
     const printOptions = buildPrintOptions(printSettings, {
@@ -330,6 +371,9 @@ async function printFile({ name, mime, settings, data, printerName } = {}) {
     console.error('[printcure] print failed:', error.message);
     return { ok: false, reason: error.message, filePath };
   } finally {
+    if (htmlPath) {
+      await fs.unlink(htmlPath).catch(() => {});
+    }
     if (!printWindow.isDestroyed()) {
       printWindow.destroy();
     }

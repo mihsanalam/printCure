@@ -75,6 +75,18 @@ npm run dev:web       # web app only, for UI work
 `dev:desktop` starts Vite and Electron together. The QR link uses your LAN IP
 so the phone can open the web app.
 
+## Test print
+
+Open the desktop app, pick a printer in the **Printer** card, then press **Test
+print**. The app generates a sample image and sends it through the real print
+path — no phone or QR code needed. The result appears as an alert and in
+**Received files**.
+
+To check without physical paper, select **Microsoft Print to PDF** as the
+printer; it writes the test page to a PDF file. For a full end-to-end check, run
+`npm run dev:desktop`, scan the QR code with your phone, choose an image and
+press **Send to desktop and print**.
+
 ## Build
 
 ```bash

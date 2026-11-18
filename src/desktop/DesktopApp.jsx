@@ -7,7 +7,7 @@ import Card from '@hi-ui/card';
 import Progress from '@hi-ui/progress';
 import Select from '@hi-ui/select';
 import Tag from '@hi-ui/tag';
-import { MESSAGE } from '../shared/protocol.js';
+import { DEFAULT_PRINT_SETTINGS, MESSAGE } from '../shared/protocol.js';
 
 const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
 const DEFAULT_PRINTER_ID = '__system_default__';
@@ -42,6 +42,8 @@ export default function DesktopApp() {
   const [printerSaving, setPrinterSaving] = useState(false);
   const [printerError, setPrinterError] = useState('');
   const [openingId, setOpeningId] = useState('');
+  const [testPrinting, setTestPrinting] = useState(false);
+  const [testNotice, setTestNotice] = useState('');
 
   const transfers = useRef(new Map());
 
@@ -247,6 +249,60 @@ export default function DesktopApp() {
       setPrinterError(printerSaveError.message);
     } finally {
       setPrinterSaving(false);
+    }
+  }
+
+  async function handleTestPrint() {
+    if (!bridge) {
+      return;
+    }
+
+    setTestPrinting(true);
+    setTestNotice('');
+    setError('');
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#1f6feb';
+      ctx.fillRect(0, 0, canvas.width, 160);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 64px sans-serif';
+      ctx.fillText('PrintCure test print', 60, 105);
+      ctx.fillStyle = '#222222';
+      ctx.font = '32px sans-serif';
+      ctx.fillText(new Date().toLocaleString(), 60, 260);
+      ctx.fillText('If you can read this, printing works.', 60, 320);
+      ['#e53935', '#43a047', '#1e88e5', '#fdd835'].forEach((color, index) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(60 + index * 270, 420, 240, 160);
+      });
+
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) {
+        throw new Error('The test image could not be created.');
+      }
+
+      const result = await bridge.printFile({
+        name: 'printcure-test.png',
+        mime: 'image/png',
+        settings: DEFAULT_PRINT_SETTINGS,
+        data: await blob.arrayBuffer(),
+      });
+
+      if (result.ok) {
+        setTestNotice(`Test print sent to ${result.printerName || 'the system default printer'}.`);
+      } else {
+        setError(`Test print failed: ${result.reason}`);
+      }
+    } catch (testError) {
+      setError(`Test print failed: ${testError.message}`);
+    } finally {
+      setTestPrinting(false);
     }
   }
 
@@ -475,6 +531,19 @@ export default function DesktopApp() {
                 <p className="muted printer-note">
                   Saved automatically. Every new file is sent straight to this printer without asking.
                 </p>
+
+                <div className="actions">
+                  <Button
+                    appearance="line"
+                    onClick={handleTestPrint}
+                    disabled={!bridge || testPrinting || printerLoading}
+                    loading={testPrinting}
+                  >
+                    {testPrinting ? 'Printing test...' : 'Test print'}
+                  </Button>
+                </div>
+
+                {testNotice && <Alert type="success" title={testNotice} />}
 
                 {printerSaving && <p className="muted">Saving printer...</p>}
 
