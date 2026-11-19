@@ -246,6 +246,25 @@ async function waitForImage(webContents, timeoutMs = 20000) {
   throw new Error('Timed out while loading the image for printing.');
 }
 
+// Chromium's PDF viewer loads in a plugin, so did-finish-load can fire before
+// the first page is painted. Printing at that point produces blank or partial
+// pages, so wait for the viewer to appear and give it time to render.
+async function waitForPdf(webContents, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const viewerReady = await webContents
+      .executeJavaScript(
+        `Boolean(document.querySelector('embed, #viewer, pdf-viewer'))`
+      )
+      .catch(() => true);
+    if (viewerReady) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+}
+
 async function printFile({ name, mime, settings, data, printerName } = {}) {
   if (!data) {
     return { ok: false, reason: 'No file data was received.' };
@@ -262,7 +281,7 @@ async function printFile({ name, mime, settings, data, printerName } = {}) {
   await fs.writeFile(filePath, buffer);
 
   const isImage = IMAGE_MIME_TYPES.has(mime);
-  const isPdf = mime === 'application/pdf';
+  const isPdf = mime === 'application/pdf' || extension.toLowerCase() === '.pdf';
 
   if (!isImage && !isPdf) {
     return {
@@ -319,6 +338,7 @@ async function printFile({ name, mime, settings, data, printerName } = {}) {
 
     if (isPdf) {
       await printWindow.loadURL(pathToFileURL(filePath).href);
+      await waitForPdf(printWindow.webContents);
     } else {
       htmlPath = await writeImageDocument(directory, {
         mime,

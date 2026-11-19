@@ -17,9 +17,11 @@ import {
   PAGES_PER_SHEET,
   PAGE_SIZES,
   PAPER_DIMENSIONS,
+  isPdfFile,
   parsePageRanges,
 } from '../shared/protocol.js';
 import { sendFile } from './send-file.js';
+import PdfPreview from './PdfPreview.jsx';
 
 const desktopId = new URLSearchParams(window.location.search).get('peer') ?? '';
 
@@ -371,8 +373,8 @@ export default function WebApp() {
                 {file && previewUrl ? (
                   file.type.startsWith('image/') ? (
                     <img src={previewUrl} alt="Print preview" />
-                  ) : file.type === 'application/pdf' ? (
-                    <iframe src={`${previewUrl}#toolbar=0&navpanes=0`} title="PDF preview" />
+                  ) : isPdfFile(file) ? (
+                    <PdfPreview file={file} />
                   ) : (
                     <span className="paper-empty">No preview for this file type</span>
                   )

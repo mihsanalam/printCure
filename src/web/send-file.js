@@ -3,6 +3,7 @@ import {
   CHUNK_SIZE,
   MAX_FILE_BYTES,
   MESSAGE,
+  fileMime,
 } from '../shared/protocol.js';
 
 export async function sendFile(connection, file, settings, onProgress) {
@@ -22,7 +23,7 @@ export async function sendFile(connection, file, settings, onProgress) {
     type: MESSAGE.FILE_START,
     fileId,
     name: file.name,
-    mime: file.type || 'application/octet-stream',
+    mime: fileMime(file),
     size: file.size,
     settings,
   });

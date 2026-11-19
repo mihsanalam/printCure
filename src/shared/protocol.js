@@ -1,5 +1,17 @@
 // Shared P2P protocol constants used by both the web app and the desktop app.
 
+// Mobile browsers sometimes report an empty or generic MIME type for PDFs, so
+// the file extension is used as a fallback everywhere a PDF is detected.
+export function isPdfFile(file) {
+  if (!file) return false;
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+}
+
+export function fileMime(file) {
+  if (isPdfFile(file)) return 'application/pdf';
+  return file.type || 'application/octet-stream';
+}
+
 export const CHUNK_SIZE = 64 * 1024;
 export const BUFFER_HIGH_WATER = 8 * 1024 * 1024;
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
