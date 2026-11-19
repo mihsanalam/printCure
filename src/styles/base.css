@@ -3,6 +3,8 @@
   --text: #1f2329;
   --muted: #646a73;
   --border: #e5e6eb;
+  --brand-blue: #2f5fe0;
+  --brand-gray: #4e5969;
 }
 
 * {
@@ -50,6 +52,33 @@ code {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  display: block;
+  flex: none;
+}
+
+.brand-name {
+  color: var(--brand-gray);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.brand-name-accent {
+  color: var(--brand-blue);
+}
+
+.brand-block p {
+  margin-top: 6px;
 }
 
 .muted {
