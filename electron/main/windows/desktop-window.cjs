@@ -8,6 +8,8 @@ function createDesktopWindow(origin) {
     minWidth: 640,
     minHeight: 560,
     backgroundColor: '#ffffff',
+    title: 'PrintCure',
+    titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../../preload/index.cjs'),
