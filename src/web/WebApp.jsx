@@ -22,6 +22,7 @@ import {
 } from '../shared/protocol.js';
 import { sendFile } from './send-file.js';
 import PdfPreview from './PdfPreview.jsx';
+import BrandLogo from '../shared/BrandLogo.jsx';
 
 const desktopId = new URLSearchParams(window.location.search).get('peer') ?? '';
 
@@ -306,8 +307,8 @@ export default function WebApp() {
   return (
     <div className="page page--narrow">
       <header className="page-header">
-        <div>
-          <h1>PrintCure</h1>
+        <div className="brand-block">
+          <BrandLogo />
           <p className="muted">Upload, customize and print from your phone.</p>
         </div>
         <Tag type={statusTag} appearance="filled">

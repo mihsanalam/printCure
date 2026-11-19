@@ -8,6 +8,7 @@ import Progress from '@hi-ui/progress';
 import Select from '@hi-ui/select';
 import Tag from '@hi-ui/tag';
 import { DEFAULT_PRINT_SETTINGS, MESSAGE } from '../shared/protocol.js';
+import BrandLogo from '../shared/BrandLogo.jsx';
 
 const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
 const DEFAULT_PRINTER_ID = '__system_default__';
@@ -452,8 +453,8 @@ export default function DesktopApp() {
   return (
     <div className="page">
       <header className="page-header">
-        <div>
-          <h1>PrintCure</h1>
+        <div className="brand-block">
+          <BrandLogo />
           <p className="muted">{statusText}</p>
         </div>
         <Tag type={statusTag} appearance="filled">
