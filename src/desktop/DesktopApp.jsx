@@ -9,6 +9,7 @@ import Select from '@hi-ui/select';
 import Tag from '@hi-ui/tag';
 import { DEFAULT_PRINT_SETTINGS, MESSAGE } from '../shared/protocol.js';
 import BrandLogo from '../shared/BrandLogo.jsx';
+import DesktopShell from './DesktopShell.jsx';
 
 const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
 const DEFAULT_PRINTER_ID = '__system_default__';
@@ -451,7 +452,7 @@ export default function DesktopApp() {
   }
 
   return (
-    <div className="page">
+    <DesktopShell>
       <header className="page-header">
         <div className="brand-block">
           <BrandLogo />
@@ -619,6 +620,6 @@ export default function DesktopApp() {
           )}
         </Card>
       </div>
-    </div>
+    </DesktopShell>
   );
 }

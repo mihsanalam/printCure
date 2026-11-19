@@ -81,6 +81,82 @@ code {
   margin-top: 6px;
 }
 
+.desktop-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.desktop-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.desktop-shell .page {
+  max-width: none;
+  margin: 0;
+  padding: 24px 28px 56px;
+}
+
+.titlebar {
+  flex: none;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 16px;
+  background: var(--brand-blue);
+  color: #ffffff;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-controls button {
+  width: 48px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.titlebar-controls button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.titlebar-controls .titlebar-close:hover {
+  background: #e81123;
+}
+
+.titlebar-controls svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .muted {
   margin: 0;
   color: var(--muted);
