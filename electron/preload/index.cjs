@@ -10,4 +10,10 @@ contextBridge.exposeInMainWorld('printCure', {
   getPrinterConfig: () => ipcRenderer.invoke('printer:get'),
   setPrinter: (printerName) => ipcRenderer.invoke('printer:set', printerName),
   openFile: (filePath) => ipcRenderer.invoke('file:open', filePath),
+  windowControls: {
+    minimize: () => ipcRenderer.send('win:minimize'),
+    maximize: () => ipcRenderer.send('win:maximize'),
+    close: () => ipcRenderer.send('win:close'),
+    isMaximized: () => ipcRenderer.invoke('win:is-maximized'),
+  },
 });

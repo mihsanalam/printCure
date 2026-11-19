@@ -7,5 +7,9 @@ module.exports = {
     PRINTER_GET: 'printer:get',
     PRINTER_SET: 'printer:set',
     FILE_OPEN: 'file:open',
+    WINDOW_MINIMIZE: 'win:minimize',
+    WINDOW_MAXIMIZE: 'win:maximize',
+    WINDOW_CLOSE: 'win:close',
+    WINDOW_IS_MAXIMIZED: 'win:is-maximized',
   },
 };

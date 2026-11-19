@@ -63,6 +63,28 @@ app.whenReady().then(async () => {
 
   ipcMain.handle(IPC.FILE_OPEN, async (_event, filePath) => openReceivedFile(filePath));
 
+  ipcMain.on(IPC.WINDOW_MINIMIZE, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize();
+  });
+
+  ipcMain.on(IPC.WINDOW_MAXIMIZE, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
+  });
+
+  ipcMain.on(IPC.WINDOW_CLOSE, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close();
+  });
+
+  ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, (event) =>
+    Boolean(BrowserWindow.fromWebContents(event.sender)?.isMaximized())
+  );
+
   createDesktopWindow(session.origin);
 
   app.on('activate', () => {
