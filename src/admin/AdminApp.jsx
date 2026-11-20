@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Alert from '@hi-ui/alert';
 import Button from '@hi-ui/button';
 import Card from '@hi-ui/card';
@@ -8,11 +8,24 @@ import NumberInput from '@hi-ui/number-input';
 import Select from '@hi-ui/select';
 import Tag from '@hi-ui/tag';
 import { DEFAULT_PRINT_SETTINGS, DEFAULT_PRICING } from '../shared/protocol.js';
+
+const DEFAULT_PAYMENT_ACCOUNT = {
+  country: 'IN',
+  upiId: '',
+  bkashNumber: '',
+  paymentLink: '',
+  qrDataUrl: '',
+};
 import BrandLogo from '../shared/BrandLogo.jsx';
 import DesktopShell from '../desktop/DesktopShell.jsx';
 
 const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
 const DEFAULT_PRINTER_ID = '__system_default__';
+
+const COUNTRY_DATA = [
+  { id: 'IN', title: 'India (UPI)' },
+  { id: 'BD', title: 'Bangladesh (bKash / Nagad)' },
+];
 
 export default function AdminApp() {
   const [unlocked, setUnlocked] = useState(false);
@@ -23,6 +36,12 @@ export default function AdminApp() {
   const [pricingSaving, setPricingSaving] = useState(false);
   const [pricingNotice, setPricingNotice] = useState('');
   const [pricingError, setPricingError] = useState('');
+
+  const [paymentAccount, setPaymentAccount] = useState(DEFAULT_PAYMENT_ACCOUNT);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentNotice, setPaymentNotice] = useState('');
+  const [paymentError, setPaymentError] = useState('');
+  const qrInputRef = useRef(null);
 
   const [printers, setPrinters] = useState([]);
   const [printerName, setPrinterName] = useState(null);
@@ -74,13 +93,15 @@ export default function AdminApp() {
       setPrinterLoading(true);
       setPrinterError('');
       try {
-        const [savedPricing, printerList, printerConfig] = await Promise.all([
+        const [savedPricing, printerList, printerConfig, savedPayment] = await Promise.all([
           bridge.getPricing(),
           bridge.getPrinters(),
           bridge.getPrinterConfig(),
+          bridge.getPaymentAccount(),
         ]);
         if (!active) return;
         setPricing(savedPricing ?? DEFAULT_PRICING);
+        setPaymentAccount({ ...DEFAULT_PAYMENT_ACCOUNT, ...(savedPayment ?? {}) });
         setPrinterName(printerConfig?.printerName ?? null);
         if (printerList.ok) {
           setPrinters(printerList.printers ?? []);
@@ -134,6 +155,53 @@ export default function AdminApp() {
       setPricingError(error.message);
     } finally {
       setPricingSaving(false);
+    }
+  }
+
+  async function handleSavePayment() {
+    if (!bridge) return;
+    setPaymentSaving(true);
+    setPaymentNotice('');
+    setPaymentError('');
+    try {
+      const saved = await bridge.setPaymentAccount(paymentAccount);
+      setPaymentAccount({ ...DEFAULT_PAYMENT_ACCOUNT, ...(saved ?? {}) });
+      setPaymentNotice('Payment account saved.');
+    } catch (error) {
+      setPaymentError(error.message);
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
+
+  function updatePayment(name, value) {
+    setPaymentAccount((current) => ({ ...current, [name]: value }));
+  }
+
+  async function handleQrFile(event) {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    if (!selected.type.startsWith('image/')) {
+      setPaymentError('Choose an image file for the QR code.');
+      return;
+    }
+    if (selected.size > 2 * 1024 * 1024) {
+      setPaymentError('The QR image must be smaller than 2 MB.');
+      return;
+    }
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(selected);
+      });
+      updatePayment('qrDataUrl', dataUrl);
+      setPaymentError('');
+    } catch (error) {
+      setPaymentError(error.message);
+    } finally {
+      event.target.value = '';
     }
   }
 
@@ -334,6 +402,91 @@ export default function AdminApp() {
 
           {pricingNotice && <Alert type="success" title={pricingNotice} />}
           {pricingError && <Alert type="danger" title={pricingError} />}
+        </Card>
+
+        <Card title="Payment account">
+          <p className="muted">
+            Save the account or QR where customers pay you. Nothing is charged in the app; payment
+            is confirmed manually after printing.
+          </p>
+
+          <div className="field">
+            <span className="field-label">Country</span>
+            <Select
+              data={COUNTRY_DATA}
+              value={paymentAccount.country}
+              onChange={(value) => updatePayment('country', String(value))}
+            />
+          </div>
+
+          <div className="field-row">
+            <div className="field">
+              <span className="field-label">
+                {paymentAccount.country === 'BD' ? 'bKash / Nagad number' : 'UPI ID'}
+              </span>
+              <Input
+                value={
+                  paymentAccount.country === 'BD'
+                    ? paymentAccount.bkashNumber
+                    : paymentAccount.upiId
+                }
+                placeholder={paymentAccount.country === 'BD' ? '01XXXXXXXXX' : 'name@bank'}
+                onChange={(_event, value) =>
+                  updatePayment(
+                    paymentAccount.country === 'BD' ? 'bkashNumber' : 'upiId',
+                    value
+                  )
+                }
+              />
+            </div>
+            <div className="field">
+              <span className="field-label">Payment link (optional)</span>
+              <Input
+                value={paymentAccount.paymentLink}
+                placeholder="https://..."
+                onChange={(_event, value) => updatePayment('paymentLink', value)}
+              />
+            </div>
+          </div>
+
+          <div className="field payment-qr-field">
+            <span className="field-label">Account QR image (optional)</span>
+            <input
+              ref={qrInputRef}
+              className="visually-hidden"
+              type="file"
+              accept="image/*"
+              onChange={handleQrFile}
+            />
+            <div className="payment-qr-row">
+              <Button appearance="line" onClick={() => qrInputRef.current?.click()}>
+                Choose QR image
+              </Button>
+              {paymentAccount.qrDataUrl && (
+                <Button
+                  size="sm"
+                  appearance="text"
+                  onClick={() => updatePayment('qrDataUrl', '')}
+                >
+                  Remove QR
+                </Button>
+              )}
+            </div>
+            {paymentAccount.qrDataUrl && (
+              <div className="payment-qr-preview">
+                <img src={paymentAccount.qrDataUrl} alt="Payment account QR" />
+              </div>
+            )}
+          </div>
+
+          <div className="actions">
+            <Button type="primary" onClick={handleSavePayment} loading={paymentSaving}>
+              Save payment account
+            </Button>
+          </div>
+
+          {paymentNotice && <Alert type="success" title={paymentNotice} />}
+          {paymentError && <Alert type="danger" title={paymentError} />}
         </Card>
 
         <Card
