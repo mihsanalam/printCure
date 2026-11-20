@@ -16,6 +16,7 @@ export default defineConfig({
       input: {
         desktop: 'desktop.html',
         web: 'web.html',
+        admin: 'admin.html',
       },
     },
   },
