@@ -22,6 +22,14 @@ export const MESSAGE = {
   FILE_CHUNK: 'file:chunk',
   FILE_END: 'file:end',
   FILE_RESULT: 'file:result',
+  PRICE_INFO: 'price:info',
+};
+
+export const DEFAULT_PRICING = {
+  enabled: false,
+  bwPrice: 0,
+  colorPrice: 0,
+  currency: '₹',
 };
 
 export const PAGE_SIZES = ['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Tabloid'];

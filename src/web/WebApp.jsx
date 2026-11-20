@@ -14,6 +14,7 @@ import {
   MAX_FILE_BYTES,
   MAX_WAIT_MS,
   MESSAGE,
+  DEFAULT_PRICING,
   PAGES_PER_SHEET,
   PAGE_SIZES,
   PAPER_DIMENSIONS,
@@ -59,6 +60,35 @@ function toNumber(value, fallback) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function formatAmount(amount, currency) {
+  const text = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+  return `${currency || '₹'}${text}`;
+}
+
+function priceEstimate(pricing, settings) {
+  if (!pricing?.enabled) {
+    return '';
+  }
+
+  const perPage = Number(
+    settings.color === 'grayscale' ? pricing.bwPrice : pricing.colorPrice
+  ) || 0;
+  const currency = pricing.currency || '₹';
+  const copies = settings.copies || 1;
+  const ranges =
+    settings.pageRanges.mode === 'custom' ? parsePageRanges(settings.pageRanges.value) : null;
+
+  if (ranges) {
+    const pages = ranges.reduce((total, range) => total + range.to - range.from + 1, 0);
+    const copyText = copies > 1 ? ` x ${copies} copies` : '';
+    return `${formatAmount(perPage * pages * copies, currency)} for ${pages} page${
+      pages === 1 ? '' : 's'
+    }${copyText}`;
+  }
+
+  return `${formatAmount(perPage, currency)} per page - final total depends on pages printed`;
+}
+
 export default function WebApp() {
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState('connecting');
@@ -70,6 +100,7 @@ export default function WebApp() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('primary');
+  const [pricing, setPricing] = useState(DEFAULT_PRICING);
 
   const connectionRef = useRef(null);
   const resultWaiter = useRef(null);
@@ -110,6 +141,9 @@ export default function WebApp() {
       connection.on('data', (data) => {
         if (data?.type === MESSAGE.FILE_RESULT) {
           resultWaiter.current?.(data);
+        }
+        if (data?.type === MESSAGE.PRICE_INFO) {
+          setPricing({ ...DEFAULT_PRICING, ...(data.pricing ?? {}) });
         }
       });
 
@@ -287,6 +321,7 @@ export default function WebApp() {
           ? 'Offline'
           : 'Connecting';
 
+  const priceText = priceEstimate(pricing, settings);
   const marginLabel = MARGIN_DATA.find((item) => item.id === settings.margins.type)?.title;
   const duplexLabel = DUPLEX_DATA.find((item) => item.id === settings.duplex)?.title;
 
@@ -551,6 +586,12 @@ export default function WebApp() {
 
         <Card title="3. Send and print">
           <p className="muted summary-line">{summary}</p>
+
+          {priceText && (
+            <p className="muted price-line">
+              Estimated price: <strong>{priceText}</strong>
+            </p>
+          )}
 
           <div className="actions">
             <Button
