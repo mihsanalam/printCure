@@ -588,9 +588,12 @@ export default function WebApp() {
           <p className="muted summary-line">{summary}</p>
 
           {priceText && (
-            <p className="muted price-line">
-              Estimated price: <strong>{priceText}</strong>
-            </p>
+            <>
+              <p className="muted price-line">
+                Estimated price: <strong>{priceText}</strong>
+              </p>
+              <p className="muted">Pay at the counter after printing.</p>
+            </>
           )}
 
           <div className="actions">

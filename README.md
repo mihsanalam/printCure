@@ -81,6 +81,18 @@ the phone when it connects. The phone shows a total when a page range is known,
 otherwise it shows the per-page rate. Printing still starts immediately; the
 owner collects payment separately.
 
+## Payment account (UI only)
+
+The owner panel has a **Payment account** card where the owner saves the country
+(India or Bangladesh), a UPI ID or bKash/Nagad number, an optional payment link,
+and an optional QR image. These details are stored in `config.json` and are only
+shown in the owner panel. The phone shows the bill amount and "Pay at the
+counter after printing"; it does not show the QR or link.
+
+No payment gateway is integrated and no money is collected by the app. A future
+contributor can connect Razorpay (India) or SSLCommerz/bKash (Bangladesh) to the
+saved account details. Until then the owner confirms payments manually.
+
 ## Requirements
 
 - Node.js 20 or newer
