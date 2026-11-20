@@ -14,6 +14,8 @@ const {
   hasOwnerPin,
   unlockOwner,
   setOwnerPin,
+  getPaymentAccount,
+  setPaymentAccount,
 } = require('./config.cjs');
 const { createAdminWindow } = require('./windows/admin-window.cjs');
 
@@ -90,6 +92,8 @@ app.whenReady().then(async () => {
   ipcMain.handle(IPC.ADMIN_UNLOCK, async (_event, pin) => unlockOwner(pin));
   ipcMain.handle(IPC.ADMIN_SET_PIN, async (_event, pin) => setOwnerPin(pin));
   ipcMain.on(IPC.ADMIN_OPEN, () => openAdminWindow(session.origin));
+  ipcMain.handle(IPC.PAYMENT_ACCOUNT_GET, () => getPaymentAccount());
+  ipcMain.handle(IPC.PAYMENT_ACCOUNT_SET, async (_event, account) => setPaymentAccount(account));
 
   ipcMain.on(IPC.WINDOW_MINIMIZE, (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();

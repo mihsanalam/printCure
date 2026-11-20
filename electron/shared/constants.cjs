@@ -17,5 +17,7 @@ module.exports = {
     ADMIN_UNLOCK: 'admin:unlock',
     ADMIN_SET_PIN: 'admin:set-pin',
     ADMIN_OPEN: 'admin:open',
+    PAYMENT_ACCOUNT_GET: 'payment:account-get',
+    PAYMENT_ACCOUNT_SET: 'payment:account-set',
   },
 };

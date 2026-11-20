@@ -22,4 +22,6 @@ contextBridge.exposeInMainWorld('printCure', {
   unlockOwner: (pin) => ipcRenderer.invoke('admin:unlock', pin),
   setOwnerPin: (pin) => ipcRenderer.invoke('admin:set-pin', pin),
   openOwnerPanel: () => ipcRenderer.send('admin:open'),
+  getPaymentAccount: () => ipcRenderer.invoke('payment:account-get'),
+  setPaymentAccount: (account) => ipcRenderer.invoke('payment:account-set', account),
 });

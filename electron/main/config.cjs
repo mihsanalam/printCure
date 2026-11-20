@@ -92,6 +92,46 @@ async function setPricing(value = {}) {
   return getPricing();
 }
 
+const DEFAULT_PAYMENT_ACCOUNT = {
+  country: 'IN',
+  upiId: '',
+  bkashNumber: '',
+  paymentLink: '',
+  qrDataUrl: '',
+};
+
+async function getPaymentAccount() {
+  const config = await readConfig();
+  const saved = config.paymentAccount && typeof config.paymentAccount === 'object'
+    ? config.paymentAccount
+    : {};
+  return {
+    country: saved.country === 'BD' ? 'BD' : 'IN',
+    upiId: typeof saved.upiId === 'string' ? saved.upiId : '',
+    bkashNumber: typeof saved.bkashNumber === 'string' ? saved.bkashNumber : '',
+    paymentLink: typeof saved.paymentLink === 'string' ? saved.paymentLink : '',
+    qrDataUrl: typeof saved.qrDataUrl === 'string' ? saved.qrDataUrl : '',
+  };
+}
+
+async function setPaymentAccount(value = {}) {
+  const config = await readConfig();
+  const link = typeof value.paymentLink === 'string' ? value.paymentLink.trim() : '';
+  const qr = typeof value.qrDataUrl === 'string' ? value.qrDataUrl : '';
+  const next = {
+    ...config,
+    paymentAccount: {
+      country: value.country === 'BD' ? 'BD' : 'IN',
+      upiId: typeof value.upiId === 'string' ? value.upiId.trim().slice(0, 120) : '',
+      bkashNumber: typeof value.bkashNumber === 'string' ? value.bkashNumber.trim().slice(0, 40) : '',
+      paymentLink: /^https?:\/\//i.test(link) ? link.slice(0, 800) : '',
+      qrDataUrl: /^data:image\//i.test(qr) && qr.length <= 2_000_000 ? qr : '',
+    },
+  };
+  await writeConfig(next);
+  return getPaymentAccount();
+}
+
 function pinHash(pin) {
   return crypto.createHash('sha256').update(`printcure:${pin}`).digest('hex');
 }
@@ -129,6 +169,9 @@ module.exports = {
   DEFAULT_PRICING,
   getPricing,
   setPricing,
+  DEFAULT_PAYMENT_ACCOUNT,
+  getPaymentAccount,
+  setPaymentAccount,
   hasOwnerPin,
   unlockOwner,
   setOwnerPin,
