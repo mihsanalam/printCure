@@ -1,5 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { app } = require('electron');
 
 // Small JSON settings file in the OS user-data folder. It survives restarts and
@@ -56,4 +57,79 @@ async function setPrinterName(printerName) {
   return next.printerName;
 }
 
-module.exports = { configPath, getPrinterName, setPrinterName };
+const DEFAULT_PRICING = {
+  enabled: false,
+  bwPrice: 0,
+  colorPrice: 0,
+  currency: '₹',
+};
+
+async function getPricing() {
+  const config = await readConfig();
+  const saved = config.pricing && typeof config.pricing === 'object' ? config.pricing : {};
+  return {
+    enabled: Boolean(saved.enabled),
+    bwPrice: Number.isFinite(saved.bwPrice) ? Math.max(0, saved.bwPrice) : 0,
+    colorPrice: Number.isFinite(saved.colorPrice) ? Math.max(0, saved.colorPrice) : 0,
+    currency: typeof saved.currency === 'string' && saved.currency ? saved.currency : '₹',
+  };
+}
+
+async function setPricing(value = {}) {
+  const config = await readConfig();
+  const next = {
+    ...config,
+    pricing: {
+      enabled: Boolean(value.enabled),
+      bwPrice: Math.max(0, Number(value.bwPrice) || 0),
+      colorPrice: Math.max(0, Number(value.colorPrice) || 0),
+      currency: typeof value.currency === 'string' && value.currency.trim()
+        ? value.currency.trim().slice(0, 4)
+        : DEFAULT_PRICING.currency,
+    },
+  };
+  await writeConfig(next);
+  return getPricing();
+}
+
+function pinHash(pin) {
+  return crypto.createHash('sha256').update(`printcure:${pin}`).digest('hex');
+}
+
+async function hasOwnerPin() {
+  const config = await readConfig();
+  return Boolean(config.ownerPinHash);
+}
+
+async function unlockOwner(pin) {
+  const config = await readConfig();
+  if (!config.ownerPinHash) {
+    return true;
+  }
+  return config.ownerPinHash === pinHash(String(pin ?? ''));
+}
+
+async function setOwnerPin(pin) {
+  const config = await readConfig();
+  const text = String(pin ?? '').trim();
+  const next = { ...config };
+  if (text) {
+    next.ownerPinHash = pinHash(text);
+  } else {
+    delete next.ownerPinHash;
+  }
+  await writeConfig(next);
+  return Boolean(text);
+}
+
+module.exports = {
+  configPath,
+  getPrinterName,
+  setPrinterName,
+  DEFAULT_PRICING,
+  getPricing,
+  setPricing,
+  hasOwnerPin,
+  unlockOwner,
+  setOwnerPin,
+};
