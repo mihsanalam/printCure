@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
-const controls = typeof window !== 'undefined' ? window.printCure?.windowControls : undefined;
+const bridge = typeof window !== 'undefined' ? window.printCure : undefined;
+const controls = bridge?.windowControls;
 
-export default function TitleBar() {
+export default function TitleBar({ label = 'PrintCure', showOwnerButton = false }) {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -39,7 +40,21 @@ export default function TitleBar() {
             fill="#2f5fe0"
           />
         </svg>
-        <span>PrintCure</span>
+        <span>{label}</span>
+        {showOwnerButton && bridge?.openOwnerPanel && (
+          <button
+            type="button"
+            className="titlebar-gear"
+            aria-label="Owner panel"
+            title="Owner panel"
+            onClick={bridge.openOwnerPanel}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.98 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.62 15 1.7 1.7 0 0 0 3.06 14H3v-4h.08A1.7 1.7 0 0 0 4.6 8.98a1.7 1.7 0 0 0-.34-1.87l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.62 1.7 1.7 0 0 0 10 3.06V3h4v.08A1.7 1.7 0 0 0 15.02 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.38 9c.13.62.66 1.04 1.56 1.04H21v4h-.08A1.7 1.7 0 0 0 19.4 15z" />
+            </svg>
+          </button>
+        )}
       </div>
 
       <div className="titlebar-controls">

@@ -147,6 +147,34 @@ code {
   background: #e81123;
 }
 
+.titlebar-gear {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-left: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-gear:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.titlebar-gear svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .titlebar-controls svg {
   width: 16px;
   height: 16px;
