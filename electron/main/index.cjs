@@ -6,9 +6,30 @@ const { startStaticServer } = require('./static-server.cjs');
 const { createDesktopWindow } = require('./windows/desktop-window.cjs');
 const { printFile, listPrinters } = require('./system/printing.cjs');
 const { openReceivedFile } = require('./system/open-file.cjs');
-const { getPrinterName, setPrinterName } = require('./config.cjs');
+const {
+  getPrinterName,
+  setPrinterName,
+  getPricing,
+  setPricing,
+  hasOwnerPin,
+  unlockOwner,
+  setOwnerPin,
+} = require('./config.cjs');
+const { createAdminWindow } = require('./windows/admin-window.cjs');
 
 let staticServer = null;
+let adminWindow = null;
+
+function openAdminWindow(origin) {
+  if (adminWindow && !adminWindow.isDestroyed()) {
+    adminWindow.focus();
+    return;
+  }
+  adminWindow = createAdminWindow(origin);
+  adminWindow.on('closed', () => {
+    adminWindow = null;
+  });
+}
 
 async function resolveSession() {
   const lanIp = getLanIp();
@@ -62,6 +83,13 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle(IPC.FILE_OPEN, async (_event, filePath) => openReceivedFile(filePath));
+
+  ipcMain.handle(IPC.PRICING_GET, () => getPricing());
+  ipcMain.handle(IPC.PRICING_SET, async (_event, pricing) => setPricing(pricing));
+  ipcMain.handle(IPC.ADMIN_HAS_PIN, () => hasOwnerPin());
+  ipcMain.handle(IPC.ADMIN_UNLOCK, async (_event, pin) => unlockOwner(pin));
+  ipcMain.handle(IPC.ADMIN_SET_PIN, async (_event, pin) => setOwnerPin(pin));
+  ipcMain.on(IPC.ADMIN_OPEN, () => openAdminWindow(session.origin));
 
   ipcMain.on(IPC.WINDOW_MINIMIZE, (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize();

@@ -11,5 +11,11 @@ module.exports = {
     WINDOW_MAXIMIZE: 'win:maximize',
     WINDOW_CLOSE: 'win:close',
     WINDOW_IS_MAXIMIZED: 'win:is-maximized',
+    PRICING_GET: 'pricing:get',
+    PRICING_SET: 'pricing:set',
+    ADMIN_HAS_PIN: 'admin:has-pin',
+    ADMIN_UNLOCK: 'admin:unlock',
+    ADMIN_SET_PIN: 'admin:set-pin',
+    ADMIN_OPEN: 'admin:open',
   },
 };

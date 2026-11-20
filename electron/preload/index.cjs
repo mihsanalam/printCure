@@ -16,4 +16,10 @@ contextBridge.exposeInMainWorld('printCure', {
     close: () => ipcRenderer.send('win:close'),
     isMaximized: () => ipcRenderer.invoke('win:is-maximized'),
   },
+  getPricing: () => ipcRenderer.invoke('pricing:get'),
+  setPricing: (pricing) => ipcRenderer.invoke('pricing:set', pricing),
+  hasOwnerPin: () => ipcRenderer.invoke('admin:has-pin'),
+  unlockOwner: (pin) => ipcRenderer.invoke('admin:unlock', pin),
+  setOwnerPin: (pin) => ipcRenderer.invoke('admin:set-pin', pin),
+  openOwnerPanel: () => ipcRenderer.send('admin:open'),
 });
